@@ -5,7 +5,7 @@ import torch
 from vllm import LLM, SamplingParams
 
 def main():
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "3"
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     torch.cuda.set_device(0)
 

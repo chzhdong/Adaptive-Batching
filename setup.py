@@ -384,84 +384,15 @@ def _no_device() -> bool:
 
 def _is_cuda() -> bool:
     has_cuda = torch.version.cuda is not None
-    return (VLLM_TARGET_DEVICE == "cuda" and has_cuda
-            and not (_is_neuron() or _is_tpu() or _is_hpu()))
-
-
-def _is_hip() -> bool:
-    return (VLLM_TARGET_DEVICE == "cuda"
-            or VLLM_TARGET_DEVICE == "rocm") and torch.version.hip is not None
-
-
-def _is_neuron() -> bool:
-    return VLLM_TARGET_DEVICE == "neuron"
-
-
-def _is_tpu() -> bool:
-    return VLLM_TARGET_DEVICE == "tpu"
+    return (VLLM_TARGET_DEVICE == "cuda" and has_cuda)
 
 
 def _is_cpu() -> bool:
     return VLLM_TARGET_DEVICE == "cpu"
 
 
-def _is_openvino() -> bool:
-    return VLLM_TARGET_DEVICE == "openvino"
-
-
-def _is_xpu() -> bool:
-    return VLLM_TARGET_DEVICE == "xpu"
-
-
 def _build_custom_ops() -> bool:
-    return _is_cuda() or _is_hip() or _is_cpu()
-
-
-def get_rocm_version():
-    # Get the Rocm version from the ROCM_HOME/bin/librocm-core.so
-    # see https://github.com/ROCm/rocm-core/blob/d11f5c20d500f729c393680a01fa902ebf92094b/rocm_version.cpp#L21
-    try:
-        librocm_core_file = Path(ROCM_HOME) / "lib" / "librocm-core.so"
-        if not librocm_core_file.is_file():
-            return None
-        librocm_core = ctypes.CDLL(librocm_core_file)
-        VerErrors = ctypes.c_uint32
-        get_rocm_core_version = librocm_core.getROCmVersion
-        get_rocm_core_version.restype = VerErrors
-        get_rocm_core_version.argtypes = [
-            ctypes.POINTER(ctypes.c_uint32),
-            ctypes.POINTER(ctypes.c_uint32),
-            ctypes.POINTER(ctypes.c_uint32),
-        ]
-        major = ctypes.c_uint32()
-        minor = ctypes.c_uint32()
-        patch = ctypes.c_uint32()
-
-        if (get_rocm_core_version(ctypes.byref(major), ctypes.byref(minor),
-                                  ctypes.byref(patch)) == 0):
-            return f"{major.value}.{minor.value}.{patch.value}"
-        return None
-    except Exception:
-        return None
-
-
-def get_neuronxcc_version():
-    import sysconfig
-    site_dir = sysconfig.get_paths()["purelib"]
-    version_file = os.path.join(site_dir, "neuronxcc", "version",
-                                "__init__.py")
-
-    # Check if the command was executed successfully
-    with open(version_file) as fp:
-        content = fp.read()
-
-    # Extract the version using a regular expression
-    match = re.search(r"__version__ = '(\S+)'", content)
-    if match:
-        # Return the version string
-        return match.group(1)
-    else:
-        raise RuntimeError("Could not find Neuron version in the output")
+    return _is_cuda() or _is_cpu()
 
 
 def get_nvcc_cuda_version() -> Version:
@@ -515,32 +446,9 @@ def get_vllm_version() -> str:
                 # skip this for source tarball, required for pypi
                 if "sdist" not in sys.argv:
                     version += f"{sep}cu{cuda_version_str}"
-    elif _is_hip():
-        # Get the Rocm Version
-        rocm_version = get_rocm_version() or torch.version.hip
-        if rocm_version and rocm_version != MAIN_CUDA_VERSION:
-            version += f"{sep}rocm{rocm_version.replace('.', '')[:3]}"
-    elif _is_neuron():
-        # Get the Neuron version
-        neuron_version = str(get_neuronxcc_version())
-        if neuron_version != MAIN_CUDA_VERSION:
-            neuron_version_str = neuron_version.replace(".", "")[:3]
-            version += f"{sep}neuron{neuron_version_str}"
-    elif _is_hpu():
-        # Get the Intel Gaudi Software Suite version
-        gaudi_sw_version = str(get_gaudi_sw_version())
-        if gaudi_sw_version != MAIN_CUDA_VERSION:
-            gaudi_sw_version = gaudi_sw_version.replace(".", "")[:3]
-            version += f"{sep}gaudi{gaudi_sw_version}"
-    elif _is_openvino():
-        version += f"{sep}openvino"
-    elif _is_tpu():
-        version += f"{sep}tpu"
     elif _is_cpu():
         if envs.VLLM_TARGET_DEVICE == "cpu":
             version += f"{sep}cpu"
-    elif _is_xpu():
-        version += f"{sep}xpu"
     else:
         raise RuntimeError("Unknown runtime environment")
 
@@ -577,20 +485,8 @@ def get_requirements() -> List[str]:
                 continue
             modified_requirements.append(req)
         requirements = modified_requirements
-    elif _is_hip():
-        requirements = _read_requirements("requirements-rocm.txt")
-    elif _is_neuron():
-        requirements = _read_requirements("requirements-neuron.txt")
-    elif _is_hpu():
-        requirements = _read_requirements("requirements-hpu.txt")
-    elif _is_openvino():
-        requirements = _read_requirements("requirements-openvino.txt")
-    elif _is_tpu():
-        requirements = _read_requirements("requirements-tpu.txt")
     elif _is_cpu():
         requirements = _read_requirements("requirements-cpu.txt")
-    elif _is_xpu():
-        requirements = _read_requirements("requirements-xpu.txt")
     else:
         raise ValueError(
             "Unsupported platform, please use CUDA, ROCm, Neuron, HPU, "
@@ -602,9 +498,6 @@ ext_modules = []
 
 if _is_cuda() or _is_hip():
     ext_modules.append(CMakeExtension(name="vllm._moe_C"))
-
-if _is_hip():
-    ext_modules.append(CMakeExtension(name="vllm._rocm_C"))
 
 if _is_cuda():
     ext_modules.append(CMakeExtension(name="vllm.vllm_flash_attn._vllm_fa2_C"))
