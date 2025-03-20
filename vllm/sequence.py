@@ -1094,8 +1094,7 @@ class CompletionSequenceGroupOutput(
 class PoolingSequenceGroupOutput(
         msgspec.Struct,
         omit_defaults=True,  # type: ignore[call-arg]
-        array_like=True,  # type: ignore[call-arg]
-):
+        array_like=True):  # type: ignore[call-arg]
     """The model output associated with a pooling sequence group."""
     __metaclass__ = SequenceGroupOutput
     # Annotated as Any to be compatible with msgspec
@@ -1180,8 +1179,7 @@ def get_all_seq_ids(
 
 
 def get_all_seq_ids_and_request_ids(
-    seq_group_metadata_list: List[SequenceGroupMetadata]
-) -> Tuple[List[int], Dict[str, Set[int]]]:
+    seq_group_metadata_list: List[SequenceGroupMetadata]) -> Tuple[List[int], Dict[str, Set[int]]]:
     """Given a list of SequenceGroupMetadata, create a list of all
     sequence ids.
     """
