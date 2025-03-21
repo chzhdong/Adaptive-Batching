@@ -140,7 +140,7 @@ class LLM:
 
     @classmethod
     @contextmanager
-    :def deprecate_legacy_api(cls)
+    def deprecate_legacy_api(cls):
         cls.DEPRECATE_LEGACY = True
 
         yield

@@ -91,6 +91,10 @@ export VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/${VLLM_COMMIT}/vll
 pip install --editable .
 ```
 
+```bash
+vllm serve deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B  --api-key 123 --dtype half --enable-chunked-prefill False --enforce-eager
+```
+
 Visit our [documentation](https://docs.vllm.ai/en/latest/) to learn more.
 - [Installation](https://docs.vllm.ai/en/latest/getting_started/installation/index.html)
 - [Quickstart](https://docs.vllm.ai/en/latest/getting_started/quickstart.html)
