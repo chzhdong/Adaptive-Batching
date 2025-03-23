@@ -4,6 +4,7 @@ import enum
 import os
 import random
 import time
+import math
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Deque, Dict, Iterable, List, Optional
@@ -533,6 +534,8 @@ class Scheduler:
         for i in range(1, self.scheduler_config.max_num_partial_prefills + 1):
             self.partial_prefill_budget_lookup_list[i] = (
                 scheduler_config.max_num_batched_tokens // i)
+        # Add new param for dynamic batching, previous max_num_seqs
+        self.prev_max_num_seqs = self.scheduler_config.max_num_seqs
 
     @property
     def next_cache_id(self):
@@ -1209,11 +1212,38 @@ class Scheduler:
         decodes. If there's a pressure on GPU memory, decode requests can
         be swapped or preempted.
         """
+        new_max_num_seqs = self.scheduler_config.max_num_seqs
+
+        # Dynamic batching
+        # params (enable_dynamic_batching, dynamic_batching_memory_factor, batchsize_lower, batch_size_upper) can be added in scheduler_config
+        if self.scheduler_config.enable_dynamic_batching:
+            new_max_num_seqs = self.prev_max_num_seqs
+
+            # Calculate new max_num_seqs when reqs are arrived
+            if self.waiting and self.running:
+                # we can use gpu_memory_utilization to change self.block_manager.num_total_gpu_blocks
+                used_blocks = self.block_manager.num_total_gpu_blocks - self.block_manager.get_num_free_gpu_blocks()
+                blocks_pre_seq = used_blocks / len(self.running)
+                # memory_factor can be calculated dynamically or just be a constant (e.g., 0.95)
+                memory_factor = self.scheduler_config.dynamic_batching_memory_factor
+                new_max_num_seqs = math.floor(self.block_manager.num_total_gpu_blocks * memory_factor / blocks_pre_seq)
+                # new_max_num_seqs must be greater than len(self.running)
+                new_max_num_seqs = max(new_max_num_seqs, len(self.running))
+                new_max_num_seqs = min(max(new_max_num_seqs, self.scheduler_config.batch_size_lower),
+                                       self.scheduler_config.batch_size_upper)
+                self.prev_max_num_seqs = new_max_num_seqs
+        
         # Include running requests to the budget.
         budget = SchedulingBudget(
             token_budget=self.scheduler_config.max_num_batched_tokens,
-            max_num_seqs=self.scheduler_config.max_num_seqs,
+            max_num_seqs=new_max_num_seqs,  # update max_num_seqs
         )
+
+        # Include running requests to the budget.
+        # budget = SchedulingBudget(
+        #     token_budget=self.scheduler_config.max_num_batched_tokens,
+        #     max_num_seqs=self.scheduler_config.max_num_seqs,
+        # )
         # Make sure we include num running seqs before scheduling prefill,
         # so that we don't schedule beyond max_num_seqs for prefill.
         for seq_group in self.running:

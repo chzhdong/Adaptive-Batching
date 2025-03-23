@@ -1499,6 +1499,14 @@ class SchedulerConfig:
     # or "mod.custom_class".
     scheduler_cls: Union[str, Type[object]] = "vllm.core.scheduler.Scheduler"
 
+    enable_dynamic_batching: bool = False
+
+    dynamic_batching_memory_factor: float = 0.95
+
+    batchsize_lower: int = 1
+
+    batch_size_upper: int = 128
+
     def compute_hash(self) -> str:
         """
         WARNING: Whenever a new field is added to this config,
